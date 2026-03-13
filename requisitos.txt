@@ -1,0 +1,8 @@
+pillow>=10.0.0
+mutagen>=1.46.0
+ffmpeg-python>=0.2.0
+PyPDF2>=3.0.0
+python-docx>=0.8.11
+openpyxl>=3.1.0
+python-pptx>=0.6.21
+exifread>=3.0.0
