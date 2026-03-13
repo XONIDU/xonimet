@@ -3,7 +3,7 @@
 
 """
 XONIMET 2026 - Lanzador Universal de Extractor de Metadatos
-Este script ejecuta xonimet.py y verifica dependencias
+Este script ejecuta xonimet.py y verifica las dependencias
 Desarrollado por: Darian Alberto Camacho Salas
 """
 
