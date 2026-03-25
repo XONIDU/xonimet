@@ -4,6 +4,7 @@
 """
 XONIMET 2026 - Extractor Universal de Metadatos (Modo Interactivo)
 Extrae metadatos de archivos, fotos, audio, video, documentos y mas.
+Somos XONIDU
 """
 
 import os
