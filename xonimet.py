@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-XONIMET 2026 - Extractor Universal de Metadatos (Modo Interactivo)
-Extrae metadatos de archivos, fotos, audio, video, documentos y mas.
-Somos XONIDU
+XONIMET 2026 - Extractor Universal de Metadatos (Con Reporte PDF)
+Extrae metadatos de archivos y genera reportes en PDF con formato profesional.
 """
 
 import os
@@ -26,6 +25,13 @@ import docx
 from openpyxl import load_workbook
 from pptx import Presentation
 import exifread
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image as RLImage
+from reportlab.pdfgen import canvas
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -64,11 +70,11 @@ class Xonimet:
                 'creado': datetime.datetime.fromtimestamp(self.file_path.stat().st_ctime).isoformat(),
                 'modificado': datetime.datetime.fromtimestamp(self.file_path.stat().st_mtime).isoformat(),
                 'accedido': datetime.datetime.fromtimestamp(self.file_path.stat().st_atime).isoformat(),
-                'extensión': self.file_path.suffix.lower(),
+                'extension': self.file_path.suffix.lower(),
                 'tipo_mime': self._get_mime_type(),
                 'hashes': self._calculate_hashes()
             },
-            'metadatos_específicos': self._extract_specific_metadata()
+            'metadatos_especificos': self._extract_specific_metadata()
         }
         return self.metadata
     
@@ -115,7 +121,6 @@ class Xonimet:
                 }
             })
             
-            # Extraer EXIF
             if hasattr(img, '_getexif') and img._getexif():
                 exif = {}
                 for tag_id, value in img._getexif().items():
@@ -128,7 +133,6 @@ class Xonimet:
                     exif[tag] = str(value)
                 metadata['exif'] = exif
             
-            # Usando exifread para mas detalles
             with open(self.file_path, 'rb') as f:
                 tags = exifread.process_file(f, details=True)
                 if tags:
@@ -154,7 +158,6 @@ class Xonimet:
                 if hasattr(audio.info, 'sample_rate'):
                     metadata['frecuencia_muestreo'] = f"{audio.info.sample_rate} Hz"
                 
-                # Tags/metadatos
                 if hasattr(audio, 'tags') and audio.tags:
                     tags = {}
                     for key, value in audio.tags.items():
@@ -356,6 +359,164 @@ class Xonimet:
         else:
             return {'mensaje': 'Tipo de archivo no soportado para extraccion especifica'}
     
+    def generate_pdf_report(self, output_path=None):
+        """Genera un reporte PDF bonito con los metadatos"""
+        if not self.metadata:
+            return None
+        
+        if output_path is None:
+            base_name = Path(self.metadata['archivo']['nombre']).stem
+            output_path = f"{base_name}_reporte.pdf"
+        
+        doc = SimpleDocTemplate(output_path, pagesize=A4,
+                               rightMargin=72, leftMargin=72,
+                               topMargin=72, bottomMargin=72)
+        
+        story = []
+        
+        # Estilos
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#1a5490'),
+            spaceAfter=30,
+            alignment=TA_CENTER
+        )
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=16,
+            textColor=colors.HexColor('#2c7ab1'),
+            spaceAfter=12,
+            spaceBefore=20
+        )
+        subheading_style = ParagraphStyle(
+            'CustomSubHeading',
+            parent=styles['Heading3'],
+            fontSize=14,
+            textColor=colors.HexColor('#4a90c4'),
+            spaceAfter=8,
+            spaceBefore=12
+        )
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontSize=10,
+            spaceAfter=6
+        )
+        
+        # Titulo principal
+        title_text = f"Reporte de Metadatos"
+        story.append(Paragraph(title_text, title_style))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Subtitulo
+        subtitle_text = f"Archivo: {self.metadata['archivo']['nombre']}"
+        story.append(Paragraph(subtitle_text, heading_style))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Fecha del reporte
+        fecha_text = f"Generado el: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+        story.append(Paragraph(fecha_text, normal_style))
+        story.append(Spacer(1, 0.3*inch))
+        
+        # ===== INFORMACION DEL ARCHIVO =====
+        story.append(Paragraph("Informacion del Archivo", heading_style))
+        
+        archivo_data = []
+        archivo_info = self.metadata['archivo']
+        for key, value in archivo_info.items():
+            if key != 'hashes':
+                key_name = key.replace('_', ' ').title()
+                archivo_data.append([Paragraph(f"<b>{key_name}</b>", normal_style), 
+                                    Paragraph(str(value), normal_style)])
+        
+        archivo_table = Table(archivo_data, colWidths=[2*inch, 3.5*inch])
+        archivo_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e8f0f8')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#c0c0c0')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('PADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(archivo_table)
+        story.append(Spacer(1, 0.2*inch))
+        
+        # ===== HASHES =====
+        if 'hashes' in archivo_info and archivo_info['hashes']:
+            story.append(Paragraph("Hashes de Seguridad", heading_style))
+            
+            hash_data = []
+            for algo, hash_value in archivo_info['hashes'].items():
+                hash_data.append([Paragraph(f"<b>{algo.upper()}</b>", normal_style),
+                                Paragraph(str(hash_value), normal_style)])
+            
+            hash_table = Table(hash_data, colWidths=[1.2*inch, 4.3*inch])
+            hash_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e8f0f8')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#c0c0c0')),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('PADDING', (0, 0), (-1, -1), 6),
+            ]))
+            story.append(hash_table)
+            story.append(Spacer(1, 0.2*inch))
+        
+        # ===== METADATOS ESPECIFICOS =====
+        story.append(Paragraph("Metadatos Especificos", heading_style))
+        
+        spec = self.metadata.get('metadatos_especificos', {})
+        
+        if 'error' in spec:
+            story.append(Paragraph(f"<font color='red'>Error: {spec['error']}</font>", normal_style))
+        else:
+            for key, value in spec.items():
+                if isinstance(value, dict):
+                    story.append(Paragraph(f"<b>{key.replace('_', ' ').title()}</b>", subheading_style))
+                    
+                    sub_data = []
+                    for subkey, subvalue in value.items():
+                        if subvalue:
+                            subkey_name = subkey.replace('_', ' ').title()
+                            sub_data.append([Paragraph(f"<i>{subkey_name}</i>", normal_style),
+                                           Paragraph(str(subvalue), normal_style)])
+                    
+                    if sub_data:
+                        sub_table = Table(sub_data, colWidths=[2*inch, 3.5*inch])
+                        sub_table.setStyle(TableStyle([
+                            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d0d0')),
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('PADDING', (0, 0), (-1, -1), 4),
+                        ]))
+                        story.append(sub_table)
+                        story.append(Spacer(1, 0.1*inch))
+                else:
+                    if value:
+                        line_data = [[Paragraph(f"<b>{key.replace('_', ' ').title()}</b>", normal_style),
+                                     Paragraph(str(value), normal_style)]]
+                        line_table = Table(line_data, colWidths=[2*inch, 3.5*inch])
+                        line_table.setStyle(TableStyle([
+                            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e0e0e0')),
+                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                            ('PADDING', (0, 0), (-1, -1), 4),
+                        ]))
+                        story.append(line_table)
+        
+        # Pie de pagina
+        story.append(Spacer(1, 0.5*inch))
+        footer_text = f"Reporte generado por XONIMET 2026 - Extractor Universal de Metadatos"
+        story.append(Paragraph(footer_text, ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=8,
+            textColor=colors.HexColor('#888888'),
+            alignment=TA_CENTER
+        )))
+        
+        # Construir PDF
+        doc.build(story)
+        return output_path
+    
     def print_metadata(self, metadata=None):
         """Imprime los metadatos de forma formateada"""
         if metadata is None:
@@ -369,23 +530,20 @@ class Xonimet:
         print(f"{Colors.CYAN}{Colors.BOLD}METADATOS DEL ARCHIVO{Colors.END}")
         print(f"{Colors.CYAN}{Colors.BOLD}═══════════════════════════════════════════════════════════{Colors.END}")
         
-        # Info basica
         print(f"\n{Colors.GREEN}{Colors.BOLD}INFORMACION BASICA:{Colors.END}")
         archivo = metadata.get('archivo', {})
         for key, value in archivo.items():
             if key != 'hashes':
                 print(f"  {Colors.YELLOW}•{Colors.END} {key.replace('_', ' ').title()}: {value}")
         
-        # Hashes
         if 'hashes' in archivo:
             print(f"\n{Colors.GREEN}{Colors.BOLD}HASHES:{Colors.END}")
             for algo, hash_value in archivo['hashes'].items():
                 print(f"  {Colors.YELLOW}•{Colors.END} {algo.upper()}: {hash_value}")
         
-        # Metadatos especificos
-        if 'metadatos_específicos' in metadata and metadata['metadatos_específicos']:
+        if 'metadatos_especificos' in metadata and metadata['metadatos_especificos']:
             print(f"\n{Colors.GREEN}{Colors.BOLD}METADATOS ESPECIFICOS:{Colors.END}")
-            spec = metadata['metadatos_específicos']
+            spec = metadata['metadatos_especificos']
             
             if 'error' in spec:
                 print(f"  {Colors.RED}⚠  {spec['error']}{Colors.END}")
@@ -409,8 +567,9 @@ def print_menu():
     """Muestra el menu principal"""
     menu = f"""
 {Colors.CYAN}{Colors.BOLD}═══════════════════════════════════════════════════════════
-                   XONIMET 2026 v1.0                    
+                   XONIMET 2026 v2.0                    
               Extractor Universal de Metadatos           
+                 CON GENERADOR DE REPORTES PDF          
                     MODO INTERACTIVO                      
 ═══════════════════════════════════════════════════════════{Colors.END}
 
@@ -423,10 +582,11 @@ def print_menu():
   {Colors.CYAN}[1]{Colors.END} Seleccionar archivo para analizar
   {Colors.CYAN}[2]{Colors.END} Analizar archivo actual
   {Colors.CYAN}[3]{Colors.END} Guardar resultados en JSON
-  {Colors.CYAN}[4]{Colors.END} Ver informacion del archivo actual
-  {Colors.CYAN}[5]{Colors.END} Cambiar archivo
-  {Colors.CYAN}[6]{Colors.END} Ayuda / Formatos soportados
-  {Colors.CYAN}[7]{Colors.END} Limpiar pantalla
+  {Colors.CYAN}[4]{Colors.END} GENERAR REPORTE PDF
+  {Colors.CYAN}[5]{Colors.END} Ver informacion del archivo actual
+  {Colors.CYAN}[6]{Colors.END} Cambiar archivo
+  {Colors.CYAN}[7]{Colors.END} Ayuda / Formatos soportados
+  {Colors.CYAN}[8]{Colors.END} Limpiar pantalla
   {Colors.CYAN}[0]{Colors.END} Salir
 
 {Colors.YELLOW}═══════════════════════════════════════════════════════════{Colors.END}
@@ -462,6 +622,11 @@ AYUDA - FORMATOS SOPORTADOS
   • .txt, .csv, .json, .xml, .html, .css, .js, .py, .md
   {Colors.YELLOW}→{Colors.END} Lineas, palabras, caracteres
 
+{Colors.GREEN}REPORTE PDF:{Colors.END}
+  • Genera un PDF con formato profesional
+  • Incluye tablas, colores y estructura clara
+  • Se guarda en la misma carpeta del archivo
+
 {Colors.CYAN}{Colors.BOLD}═══════════════════════════════════════════════════════════{Colors.END}
 """
     print(help_text)
@@ -480,7 +645,6 @@ def select_file():
         if not file_path:
             continue
         
-        # Expandir ~ si es necesario
         file_path = os.path.expanduser(file_path)
         
         if os.path.exists(file_path):
@@ -494,7 +658,6 @@ def save_to_json(metadata):
         print(f"{Colors.RED}No hay metadatos para guardar{Colors.END}")
         return
     
-    # Crear nombre de archivo basado en el original
     original_name = metadata.get('archivo', {}).get('nombre', 'desconocido')
     json_name = f"{Path(original_name).stem}_metadatos.json"
     
@@ -505,6 +668,20 @@ def save_to_json(metadata):
     except Exception as e:
         print(f"{Colors.RED}Error guardando: {e}{Colors.END}")
 
+def generate_pdf(xonimet):
+    """Genera reporte PDF"""
+    if not xonimet.metadata:
+        print(f"{Colors.RED}Primero analiza un archivo (opcion 2){Colors.END}")
+        return
+    
+    print(f"\n{Colors.CYAN}Generando reporte PDF...{Colors.END}")
+    try:
+        pdf_path = xonimet.generate_pdf_report()
+        print(f"{Colors.GREEN}PDF generado exitosamente: {pdf_path}{Colors.END}")
+    except Exception as e:
+        print(f"{Colors.RED}Error generando PDF: {e}{Colors.END}")
+        print(f"{Colors.YELLOW}Asegurate de tener instalado reportlab: pip install reportlab{Colors.END}")
+
 def main():
     """Funcion principal del modo interactivo"""
     xonimet = Xonimet()
@@ -514,15 +691,14 @@ def main():
         clear_screen()
         print_menu()
         
-        # Mostrar archivo actual si existe
         if current_file:
             print(f"{Colors.GREEN}Archivo actual: {current_file}{Colors.END}")
         else:
             print(f"{Colors.YELLOW}Ningun archivo seleccionado{Colors.END}")
         
-        opcion = input(f"\n{Colors.BOLD}Selecciona una opcion [0-7]:{Colors.END} ").strip()
+        opcion = input(f"\n{Colors.BOLD}Selecciona una opcion [0-8]:{Colors.END} ").strip()
         
-        if opcion == '1' or opcion == '5':  # Seleccionar/cambiar archivo
+        if opcion == '1' or opcion == '6':  # Seleccionar/cambiar archivo
             new_file = select_file()
             if new_file:
                 current_file = new_file
@@ -551,7 +727,16 @@ def main():
             save_to_json(xonimet.metadata)
             input(f"\n{Colors.YELLOW}Presiona Enter para continuar...{Colors.END}")
         
-        elif opcion == '4':  # Ver informacion del archivo actual
+        elif opcion == '4':  # Generar PDF
+            if not xonimet.metadata:
+                print(f"{Colors.RED}Primero analiza un archivo (opcion 2){Colors.END}")
+                input(f"\n{Colors.YELLOW}Presiona Enter para continuar...{Colors.END}")
+                continue
+            
+            generate_pdf(xonimet)
+            input(f"\n{Colors.YELLOW}Presiona Enter para continuar...{Colors.END}")
+        
+        elif opcion == '5':  # Ver informacion del archivo actual
             if not current_file:
                 print(f"{Colors.RED}No hay archivo seleccionado{Colors.END}")
             else:
@@ -561,12 +746,12 @@ def main():
                 print(f"  {Colors.YELLOW}•{Colors.END} Extension: {Path(current_file).suffix}")
             input(f"\n{Colors.YELLOW}Presiona Enter para continuar...{Colors.END}")
         
-        elif opcion == '6':  # Ayuda
+        elif opcion == '7':  # Ayuda
             clear_screen()
             print_help()
             input(f"\n{Colors.YELLOW}Presiona Enter para continuar...{Colors.END}")
         
-        elif opcion == '7':  # Limpiar pantalla
+        elif opcion == '8':  # Limpiar pantalla
             clear_screen()
         
         elif opcion == '0':  # Salir
@@ -580,7 +765,6 @@ def main():
 
 if __name__ == "__main__":
     try:
-        # Si hay argumentos de linea de comandos, usarlos
         if len(sys.argv) > 1 and sys.argv[1] not in ['-h', '--help']:
             file_path = sys.argv[1]
             if os.path.exists(file_path):
@@ -589,12 +773,14 @@ if __name__ == "__main__":
                 
                 if '--json' in sys.argv:
                     print(json.dumps(metadata, indent=2, ensure_ascii=False, default=str))
+                elif '--pdf' in sys.argv:
+                    pdf_path = xonimet.generate_pdf_report()
+                    print(f"PDF generado: {pdf_path}")
                 else:
                     xonimet.print_metadata(metadata)
             else:
                 print(f"{Colors.RED}El archivo '{file_path}' no existe{Colors.END}")
         else:
-            # Modo interactivo
             main()
     except KeyboardInterrupt:
         print(f"\n\n{Colors.YELLOW}Hasta pronto!{Colors.END}")
