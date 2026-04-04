@@ -2,18 +2,20 @@
 # -*- coding: utf-8 -*-
 
 """
-XONIMET 2026 - Lanzador Universal de Extractor de Metadatos
-Este script ejecuta xonimet.py y verifica las dependencias
+XONIMET 2026 - Lanzador Universal
+Este script detecta el sistema, instala dependencias y ejecuta xonimet.py
+Genera un archivo .bat en Windows para ejecutar con permisos de administrador
 Desarrollado por: Darian Alberto Camacho Salas
-SOMOS: XONIDU
 """
 
 import subprocess
 import sys
 import os
+import webbrowser
+import time
 import platform
-import shutil
-import importlib.util
+import threading
+import ctypes
 
 # Colores para terminal
 class Colors:
@@ -43,12 +45,34 @@ if not Colors.supports_color():
         if not attr.startswith('_') and attr != 'supports_color':
             setattr(Colors, attr, '')
 
+# Dependencias necesarias para xonimet.py
+REQUISITOS = [
+    'pillow>=10.0.0',
+    'mutagen>=1.46.0',
+    'ffmpeg-python>=0.2.0',
+    'PyPDF2>=3.0.0',
+    'python-docx>=0.8.11',
+    'openpyxl>=3.1.0',
+    'python-pptx>=0.6.21',
+    'exifread>=3.0.0',
+    'reportlab>=4.0.0'
+]
+
+def is_admin():
+    """Verifica si el script se ejecuta como administrador en Windows"""
+    if platform.system() == 'Windows':
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+    return True
+
 def get_system():
     """Detecta el sistema operativo"""
     return platform.system().lower()
 
 def get_linux_distro():
-    """Detecta la distribucion de Linux"""
+    """Detecta la distribución de Linux específica"""
     if get_system() != 'linux':
         return None
     
@@ -70,12 +94,28 @@ def get_linux_distro():
                     return 'manjaro'
                 elif 'mint' in content:
                     return 'mint'
+                elif 'opensuse' in content:
+                    return 'opensuse'
+        
+        try:
+            result = subprocess.run(['lsb_release', '-i'], capture_output=True, text=True)
+            if 'Ubuntu' in result.stdout:
+                return 'ubuntu'
+            elif 'Debian' in result.stdout:
+                return 'debian'
+            elif 'Fedora' in result.stdout:
+                return 'fedora'
+            elif 'CentOS' in result.stdout:
+                return 'centos'
+        except:
+            pass
+        
         return 'linux-generico'
     except:
         return 'linux-generico'
 
 def get_python_command():
-    """Obtiene el comando Python correcto"""
+    """Obtiene el comando Python correcto según el sistema"""
     if get_system() == 'windows':
         return ['python']
     else:
@@ -84,6 +124,29 @@ def get_python_command():
             return ['python3']
         except:
             return ['python']
+
+def get_pip_command():
+    """Obtiene el comando pip correcto según el sistema"""
+    if get_system() == 'windows':
+        return [sys.executable, '-m', 'pip']
+    else:
+        return [sys.executable, '-m', 'pip']
+
+def get_install_flags():
+    """Obtiene los flags de instalación según el sistema"""
+    flags = []
+    sistema = get_system()
+    distro = get_linux_distro()
+    
+    if sistema == 'linux':
+        if distro in ['ubuntu', 'debian', 'mint', 'arch', 'manjaro', 'fedora']:
+            flags.append('--break-system-packages')
+        else:
+            flags.append('--user')
+    elif sistema == 'darwin':
+        flags.append('--user')
+    
+    return flags
 
 def print_banner():
     """Muestra el banner de XONIMET"""
@@ -97,22 +160,20 @@ def print_banner():
     }.get(sistema, 'DESCONOCIDO')
     
     banner = f"""
-{Colors.BLUE}{Colors.BOLD}═══════════════════════════════════════════════════════════
-                    XONIMET 2026 v1.0                    
-              Extractor Universal de Metadatos            
-              Extrae informacion de: Fotos, Audio,        
-              Video, Documentos y mas                     
-                                                          
-              Sistema detectado: {sistema_texto}            
-                                                          
-              Desarrollado por: Darian Alberto            
-              Camacho Salas                               
-═══════════════════════════════════════════════════════════{Colors.END}
+{Colors.BLUE}{Colors.BOLD}╔══════════════════════════════════════════════════════════╗
+║                     XONIMET 2026 v2.0                     ║
+║              Extractor Universal de Metadatos              ║
+║                                                            ║
+║               Sistema detectado: {sistema_texto}            ║
+║                                                            ║
+║               Desarrollado por: Darian Alberto               ║
+║                      Camacho Salas                           ║
+╚══════════════════════════════════════════════════════════════╝{Colors.END}
     """
     print(banner)
 
 def check_python():
-    """Verifica Python instalado"""
+    """Verifica que Python está instalado"""
     try:
         cmd = get_python_command() + ['--version']
         subprocess.run(cmd, capture_output=True, check=True)
@@ -120,116 +181,127 @@ def check_python():
     except:
         return False
 
-def check_command(comando):
-    """Verifica si un comando existe"""
-    return shutil.which(comando) is not None
+def check_pip():
+    """Verifica que pip está instalado y funciona"""
+    try:
+        cmd = get_pip_command() + ['--version']
+        subprocess.run(cmd, capture_output=True, check=True)
+        return True
+    except:
+        return False
 
-def check_python_module(module_name):
-    """Verifica si un modulo de Python esta instalado"""
-    return importlib.util.find_spec(module_name) is not None
+def install_pip_windows():
+    """Instala pip en Windows si no está disponible"""
+    print(f"{Colors.YELLOW}Pip no encontrado. Instalando pip...{Colors.END}")
+    try:
+        import urllib.request
+        print("  Descargando get-pip.py...")
+        urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', 'get-pip.py')
+        
+        print("  Instalando pip...")
+        subprocess.run([sys.executable, 'get-pip.py'], check=True)
+        
+        os.remove('get-pip.py')
+        
+        print(f"{Colors.GREEN}  Pip instalado correctamente{Colors.END}")
+        return True
+    except Exception as e:
+        print(f"{Colors.RED}  Error instalando pip: {e}{Colors.END}")
+        return False
+
+def check_ffmpeg():
+    """Verifica si FFmpeg está instalado en el sistema"""
+    print(f"\n{Colors.BOLD}Verificando FFmpeg...{Colors.END}")
+    
+    if check_command('ffmpeg'):
+        print(f"{Colors.GREEN}  - FFmpeg OK{Colors.END}")
+        return True
+    else:
+        print(f"{Colors.YELLOW}  - FFmpeg (faltante - necesario para videos){Colors.END}")
+        return False
+
+def check_command(comando):
+    """Verifica si un comando existe en el sistema"""
+    return subprocess.run(['which', comando], capture_output=True).returncode == 0 if get_system() != 'windows' else subprocess.run(['where', comando], capture_output=True).returncode == 0
 
 def check_dependencies():
-    """Verifica todas las dependencias de Python necesarias"""
+    """Verifica qué dependencias necesita xonimet.py"""
     print(f"\n{Colors.BOLD}Verificando dependencias de Python...{Colors.END}")
     
-    dependencias = [
-        ('Pillow', 'pillow', 'Imagenes', 'PIL'),
-        ('mutagen', 'mutagen', 'Audio', 'mutagen'),
-        ('ffmpeg', 'ffmpeg-python', 'Video', 'ffmpeg'),
-        ('PyPDF2', 'pypdf2', 'PDF', 'PyPDF2'),
-        ('docx', 'python-docx', 'Word', 'docx'),
-        ('openpyxl', 'openpyxl', 'Excel', 'openpyxl'),
-        ('pptx', 'python-pptx', 'PowerPoint', 'pptx'),
-        ('exifread', 'exifread', 'EXIF', 'exifread')
-    ]
+    missing = []
+    for req in REQUISITOS:
+        package = req.split('>=')[0].split('==')[0]
+        import_name = package.replace('-', '_')
+        if import_name == 'pillow':
+            import_name = 'PIL'
+        elif import_name == 'ffmpeg_python':
+            import_name = 'ffmpeg'
+        
+        try:
+            __import__(import_name)
+            print(f"{Colors.GREEN}  - {package} OK{Colors.END}")
+        except ImportError:
+            print(f"{Colors.YELLOW}  - {package} (faltante){Colors.END}")
+            missing.append(req)
     
-    faltantes = []
-    
-    for modulo, paquete, desc, import_name in dependencias:
-        if check_python_module(import_name):
-            print(f"{Colors.GREEN}  - {modulo} ({desc}): OK{Colors.END}")
-        else:
-            print(f"{Colors.YELLOW}  - {modulo} ({desc}): FALTANTE{Colors.END}")
-            faltantes.append(paquete)
-    
-    # Verificar FFmpeg del sistema
-    if not check_command('ffmpeg'):
-        print(f"{Colors.YELLOW}  - FFmpeg (sistema): FALTANTE (necesario para videos){Colors.END}")
-        faltantes.append('ffmpeg-sistema')
-    else:
-        print(f"{Colors.GREEN}  - FFmpeg (sistema): OK{Colors.END}")
-    
-    return faltantes
+    return missing
 
-def install_dependencies(faltantes):
-    """Instala las dependencias faltantes"""
-    if not faltantes:
+def install_dependencies(missing):
+    """Instala las dependencias faltantes según el sistema"""
+    if not missing:
+        print(f"\n{Colors.GREEN}Todas las dependencias estan instaladas{Colors.END}")
         return True
     
     print(f"\n{Colors.BOLD}Instalando dependencias faltantes...{Colors.END}")
     
+    pip_cmd = get_pip_command()
+    flags = get_install_flags()
+    
     sistema = get_system()
     distro = get_linux_distro()
     
-    # Separar paquetes Python de FFmpeg
-    python_paquetes = [p for p in faltantes if p != 'ffmpeg-sistema']
-    ffmpeg_falta = 'ffmpeg-sistema' in faltantes
+    print(f"{Colors.YELLOW}Sistema: {sistema}{Colors.END}")
+    if distro:
+        print(f"{Colors.YELLOW}Distribucion: {distro}{Colors.END}")
+    if flags:
+        print(f"{Colors.YELLOW}Flags: {' '.join(flags)}{Colors.END}")
     
-    # Instalar paquetes Python
-    if python_paquetes:
-        print(f"Paquetes Python a instalar: {', '.join(python_paquetes)}")
-        
-        # Construir comando de instalacion
-        cmd = [sys.executable, '-m', 'pip', 'install']
-        
-        # Agregar opciones segun sistema
-        if sistema == 'linux':
-            if distro in ['arch', 'manjaro', 'fedora']:
-                cmd.append('--break-system-packages')
-                print(f"{Colors.YELLOW}Usando --break-system-packages para {distro}{Colors.END}")
-            else:
-                cmd.append('--user')
-        elif sistema == 'darwin':
-            cmd.append('--user')
-        
-        cmd.extend(python_paquetes)
-        
-        # Intentar instalacion
+    success = True
+    for req in missing:
+        print(f"  Instalando {req}...")
         try:
-            print(f"Ejecutando: {' '.join(cmd)}")
+            cmd = pip_cmd + ['install', req] + flags
             subprocess.run(cmd, check=True)
-            print(f"{Colors.GREEN}Dependencias de Python instaladas correctamente{Colors.END}")
+            print(f"{Colors.GREEN}  - {req} instalado{Colors.END}")
         except subprocess.CalledProcessError as e:
-            print(f"{Colors.RED}Error instalando dependencias: {e}{Colors.END}")
-            print(f"\n{Colors.YELLOW}Intentando metodo alternativo...{Colors.END}")
-            
-            # Segundo intento: solo --user
-            try:
-                cmd2 = [sys.executable, '-m', 'pip', 'install', '--user'] + python_paquetes
-                subprocess.run(cmd2, check=True)
-                print(f"{Colors.GREEN}Instaladas con --user{Colors.END}")
-            except:
-                print(f"{Colors.RED}Fallo la instalacion{Colors.END}")
-                print(f"\nInstala manualmente:")
-                print(f"  pip install {' '.join(python_paquetes)}")
+            print(f"{Colors.RED}  Error instalando {req}{Colors.END}")
+            success = False
     
-    # Instalar FFmpeg si falta
-    if ffmpeg_falta:
-        print(f"\n{Colors.YELLOW}FFmpeg no esta instalado{Colors.END}")
-        instalar = input("Instalar FFmpeg? (s/n): ")
-        if instalar.lower() == 's':
-            install_system_ffmpeg()
+    if success:
+        print(f"\n{Colors.GREEN}Todas las dependencias instaladas correctamente{Colors.END}")
+    else:
+        print(f"\n{Colors.YELLOW}Algunas dependencias no se instalaron{Colors.END}")
+        print(f"   Puedes instalarlas manualmente con:")
+        print(f"   {get_install_command()}")
     
-    return True
+    return success
 
-def install_system_ffmpeg():
-    """Instala FFmpeg en el sistema"""
+def install_ffmpeg():
+    """Instala FFmpeg según el sistema"""
     sistema = get_system()
     distro = get_linux_distro()
     
-    if sistema == 'linux':
-        print(f"\nInstalando FFmpeg en Linux ({distro})...")
-        
+    print(f"\n{Colors.BOLD}Instalando FFmpeg...{Colors.END}")
+    
+    if sistema == 'windows':
+        print(f"{Colors.YELLOW}En Windows, descarga FFmpeg manualmente:{Colors.END}")
+        print("  1. Ve a: https://ffmpeg.org/download.html")
+        print("  2. Descarga la version para Windows")
+        print("  3. Extrae en C:\\ffmpeg")
+        print("  4. Agrega C:\\ffmpeg\\bin al PATH")
+        return False
+    
+    elif sistema == 'linux':
         if distro in ['ubuntu', 'debian', 'mint']:
             try:
                 subprocess.run(['sudo', 'apt', 'update'], check=False)
@@ -240,18 +312,18 @@ def install_system_ffmpeg():
                 print(f"{Colors.RED}Error instalando FFmpeg{Colors.END}")
                 return False
         
-        elif distro in ['fedora']:
+        elif distro in ['arch', 'manjaro']:
             try:
-                subprocess.run(['sudo', 'dnf', 'install', '-y', 'ffmpeg'], check=True)
+                subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'ffmpeg'], check=True)
                 print(f"{Colors.GREEN}FFmpeg instalado correctamente{Colors.END}")
                 return True
             except:
                 print(f"{Colors.RED}Error instalando FFmpeg{Colors.END}")
                 return False
         
-        elif distro in ['arch', 'manjaro']:
+        elif distro in ['fedora']:
             try:
-                subprocess.run(['sudo', 'pacman', '-S', '--noconfirm', 'ffmpeg'], check=True)
+                subprocess.run(['sudo', 'dnf', 'install', '-y', 'ffmpeg'], check=True)
                 print(f"{Colors.GREEN}FFmpeg instalado correctamente{Colors.END}")
                 return True
             except:
@@ -271,79 +343,154 @@ def install_system_ffmpeg():
             print(f"{Colors.YELLOW}Instala Homebrew primero: https://brew.sh/{Colors.END}")
             return False
     
-    elif sistema == 'windows':
-        print(f"{Colors.YELLOW}Descarga FFmpeg desde: https://ffmpeg.org/download.html{Colors.END}")
-        print("Instrucciones:")
-        print("  1. Descarga el archivo")
-        print("  2. Extrae en C:\\ffmpeg")
-        print("  3. Agrega C:\\ffmpeg\\bin al PATH")
-        return False
-    
     return False
 
-def mostrar_ayuda():
-    """Muestra ayuda de uso"""
-    ayuda = f"""
-{Colors.BOLD}USO DE XONIMET:{Colors.END}
-
-  python start.py [archivo] [opciones]
-
-{Colors.BOLD}EJEMPLOS:{Colors.END}
-
-  Analizar una imagen:
-    python start.py foto.jpg
-
-  Analizar un audio:
-    python start.py cancion.mp3
-
-  Analizar un video:
-    python start.py video.mp4
-
-  Analizar un documento:
-    python start.py documento.pdf
-
-  Salida en formato JSON:
-    python start.py archivo.jpg --json
-
-{Colors.BOLD}ARCHIVOS SOPORTADOS:{Colors.END}
-
-  - Imagenes: .jpg, .png, .gif, .bmp, .tiff
-  - Audio: .mp3, .flac, .wav, .ogg, .m4a
-  - Video: .mp4, .avi, .mov, .mkv, .wmv
-  - Documentos: .pdf, .docx, .xlsx, .pptx
-  - Texto: .txt, .csv, .json, .html, .py
-    """
-    print(ayuda)
-
-def verificar_importaciones():
-    """Verifica que todas las importaciones necesarias funcionen"""
-    print(f"\n{Colors.BOLD}Verificando importaciones...{Colors.END}")
+def get_install_command():
+    """Obtiene el comando de instalación según el sistema"""
+    sistema = get_system()
+    distro = get_linux_distro()
     
-    modulos = [
-        ('PIL', 'Pillow'),
-        ('mutagen', 'mutagen'),
-        ('ffmpeg', 'ffmpeg-python'),
-        ('PyPDF2', 'PyPDF2'),
-        ('docx', 'python-docx'),
-        ('openpyxl', 'openpyxl'),
-        ('pptx', 'python-pptx'),
-        ('exifread', 'exifread')
-    ]
+    if sistema == 'windows':
+        return "pip install -r requirements.txt"
+    elif sistema == 'linux':
+        if distro in ['ubuntu', 'debian', 'mint', 'arch', 'manjaro', 'fedora']:
+            return "pip install -r requirements.txt --break-system-packages"
+        else:
+            return "pip install --user -r requirements.txt"
+    elif sistema == 'darwin':
+        return "pip3 install -r requirements.txt --user"
+    else:
+        return "pip install -r requirements.txt"
+
+def create_windows_bat():
+    """Crea un archivo .bat para ejecutar con permisos de administrador"""
+    sistema = get_system()
+    if sistema != 'windows':
+        return
     
-    todos_ok = True
-    for modulo, nombre in modulos:
-        try:
-            __import__(modulo)
-            print(f"{Colors.GREEN}  - {nombre}: OK{Colors.END}")
-        except ImportError:
-            print(f"{Colors.RED}  - {nombre}: FALLO{Colors.END}")
-            todos_ok = False
+    bat_content = '''@echo off
+title XONIMET 2026 - Extractor de Metadatos
+color 1F
+cls
+
+echo ========================================
+echo      XONIMET 2026 - Extractor Universal
+echo      Desarrollado por Darian Alberto
+echo ========================================
+echo.
+
+:: Verificar si se ejecuta como administrador
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [AVISO] Se requieren permisos de administrador para instalar dependencias
+    echo.
+    echo Solicitando permisos...
+    echo.
     
-    return todos_ok
+    :: Crear script temporal para ejecutar con admin
+    echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\\getadmin.vbs"
+    echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\\getadmin.vbs"
+    "%temp%\\getadmin.vbs"
+    del "%temp%\\getadmin.vbs"
+    exit /B
+)
+
+echo [OK] Permisos de administrador obtenidos
+echo.
+
+:: Verificar Python
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Python no esta instalado
+    echo.
+    echo Descarga Python desde: https://www.python.org/downloads/
+    echo IMPORTANTE: Marca "Add Python to PATH" durante la instalacion
+    pause
+    start https://www.python.org/downloads/
+    exit
+)
+
+echo [OK] Python instalado
+python --version
+echo.
+
+:: Verificar pip
+python -m pip --version >nul 2>&1
+if errorlevel 1 (
+    echo [AVISO] Pip no encontrado. Instalando pip...
+    python -m ensurepip --upgrade
+)
+
+echo [OK] Pip disponible
+echo.
+
+:: Instalar dependencias
+echo Instalando dependencias necesarias...
+python -m pip install pillow>=10.0.0
+python -m pip install mutagen>=1.46.0
+python -m pip install ffmpeg-python>=0.2.0
+python -m pip install PyPDF2>=3.0.0
+python -m pip install python-docx>=0.8.11
+python -m pip install openpyxl>=3.1.0
+python -m pip install python-pptx>=0.6.21
+python -m pip install exifread>=3.0.0
+python -m pip install reportlab>=4.0.0
+echo.
+echo [OK] Dependencias instaladas
+echo.
+
+:: Iniciar XONIMET
+echo ========================================
+echo Iniciando XONIMET...
+echo ========================================
+echo.
+python xonimet.py
+
+pause
+'''
+    
+    bat_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'XONIMET_ADMIN.bat')
+    with open(bat_path, 'w', encoding='utf-8') as f:
+        f.write(bat_content)
+    print(f"{Colors.GREEN}Archivo XONIMET_ADMIN.bat creado - Ejecuta como administrador si hay problemas{Colors.END}")
+    
+    # Tambien crear un .bat simple sin admin
+    simple_bat = '''@echo off
+title XONIMET 2026
+color 1F
+python start.py
+pause
+'''
+    simple_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'XONIMET.bat')
+    with open(simple_path, 'w', encoding='utf-8') as f:
+        f.write(simple_bat)
+    print(f"{Colors.GREEN}Archivo XONIMET.bat creado - Doble clic para ejecutar{Colors.END}")
+
+def mostrar_instrucciones_python():
+    """Muestra instrucciones para instalar Python según el sistema"""
+    sistema = get_system()
+    distro = get_linux_distro()
+    
+    if sistema == 'windows':
+        print(f"   Descarga Python desde: https://www.python.org/downloads/")
+        print(f"   IMPORTANTE: Al instalar, marca 'Add Python to PATH'")
+        print(f"   Luego cierra y vuelve a abrir la terminal")
+    elif sistema == 'linux':
+        if distro in ['ubuntu', 'debian', 'mint']:
+            print(f"   Instala con: sudo apt update && sudo apt install python3 python3-pip")
+        elif distro in ['fedora', 'centos']:
+            print(f"   Instala con: sudo dnf install python3 python3-pip")
+        elif distro in ['arch', 'manjaro']:
+            print(f"   Instala con: sudo pacman -S python python-pip")
+        else:
+            print(f"   Instala Python 3 desde: https://www.python.org/downloads/")
+    elif sistema == 'darwin':
+        print(f"   Instala con: brew install python3")
+        print(f"   O descarga desde: https://www.python.org/downloads/")
 
 def main():
-    """Funcion principal"""
-    # Limpiar pantalla
+    """Funcion principal - Ejecuta xonimet.py"""
+    # Limpiar pantalla según sistema
     if get_system() == 'windows':
         os.system('cls')
     else:
@@ -352,159 +499,103 @@ def main():
     # Mostrar banner
     print_banner()
     
-    # Verificar si hay argumentos de ayuda
-    if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help', '/?']:
-        mostrar_ayuda()
-        input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
-        return
+    sistema = get_system()
+    distro = get_linux_distro()
     
-    # Verificar Python
+    print(f"{Colors.BOLD}Sistema operativo:{Colors.END} {sistema}")
+    if distro:
+        print(f"{Colors.BOLD}Distribucion:{Colors.END} {distro}")
+    print(f"{Colors.BOLD}Python:{Colors.END} {sys.version.split()[0]}")
+    print(f"{Colors.BOLD}Ruta:{Colors.END} {os.path.dirname(os.path.abspath(__file__))}")
+    
+    # Crear archivos .bat para Windows (siempre)
+    if sistema == 'windows':
+        create_windows_bat()
+        print()
+    
+    # Verificar que Python está instalado
     if not check_python():
-        print(f"\n{Colors.RED}Error: Python no esta instalado{Colors.END}")
-        print("Instala Python desde: https://www.python.org/downloads/")
+        print(f"\n{Colors.RED}Error: Python no esta instalado o no esta en el PATH{Colors.END}")
+        mostrar_instrucciones_python()
         input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
         return
     
-    python_version = subprocess.run(get_python_command() + ['--version'], 
-                                   capture_output=True, text=True).stdout.strip()
-    print(f"{Colors.BOLD}Python:{Colors.END} {python_version}")
-    print(f"{Colors.BOLD}Directorio:{Colors.END} {os.path.dirname(os.path.abspath(__file__))}")
+    # Verificar pip en Windows e instalarlo si es necesario
+    if sistema == 'windows' and not check_pip():
+        print(f"\n{Colors.YELLOW}Pip no encontrado. Intentando instalar...{Colors.END}")
+        if not install_pip_windows():
+            print(f"\n{Colors.RED}No se pudo instalar pip automaticamente{Colors.END}")
+            print(f"   Ejecuta XONIMET_ADMIN.bat como administrador")
+            input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
+            return
     
-    # Verificar dependencias
-    faltantes = check_dependencies()
+    # Verificar dependencias de Python
+    missing = check_dependencies()
     
-    if faltantes:
-        print(f"\n{Colors.YELLOW}Faltan dependencias{Colors.END}")
-        respuesta = input("Instalar automaticamente? (s/n): ")
+    # Instalar dependencias si faltan
+    if missing:
+        print(f"\n{Colors.YELLOW}Faltan {len(missing)} dependencias{Colors.END}")
+        
+        # En Windows, sugerir usar el .bat con admin
+        if sistema == 'windows':
+            print(f"\n{Colors.YELLOW}Se recomienda ejecutar XONIMET_ADMIN.bat como administrador{Colors.END}")
+            print(f"   para instalar las dependencias automaticamente")
+            respuesta = input(f"Intentar instalar ahora? (s/n): ")
+        else:
+            respuesta = input(f"Instalar ahora? (s/n): ")
         
         if respuesta.lower() == 's':
-            install_dependencies(faltantes)
+            if not install_dependencies(missing):
+                print(f"\n{Colors.YELLOW}Continuando a pesar de errores...{Colors.END}")
         else:
-            print(f"\nPuedes instalarlas manualmente con:")
-            print("  pip install pillow mutagen ffmpeg-python pypdf2 python-docx openpyxl python-pptx exifread")
-            if 'ffmpeg-sistema' in faltantes:
-                print("\nY FFmpeg segun tu sistema:")
-                if get_system() == 'linux':
-                    print("  sudo apt install ffmpeg  # Ubuntu/Debian")
-                    print("  sudo pacman -S ffmpeg    # Arch")
-                    print("  sudo dnf install ffmpeg  # Fedora")
+            print(f"\n{Colors.YELLOW}No se instalaran dependencias. Puede haber errores.{Colors.END}")
+            if sistema == 'windows':
+                print(f"   Ejecuta XONIMET_ADMIN.bat como administrador para instalarlas")
+    
+    # Verificar FFmpeg (necesario para videos)
+    if not check_ffmpeg():
+        print(f"\n{Colors.YELLOW}FFmpeg no esta instalado (necesario para analizar videos){Colors.END}")
+        respuesta = input(f"Instalar FFmpeg ahora? (s/n): ")
+        if respuesta.lower() == 's':
+            install_ffmpeg()
     
     # Verificar que existe xonimet.py
     if not os.path.exists('xonimet.py'):
         print(f"\n{Colors.RED}Error: No se encuentra xonimet.py{Colors.END}")
-        print("Asegurate de que xonimet.py esta en el mismo directorio")
+        print(f"   Asegurate de que xonimet.py esta en la misma carpeta")
+        print(f"   Archivos encontrados: {', '.join(os.listdir('.')[:5])}")
         input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
         return
     
-    # Verificar que las importaciones funcionan
-    print(f"\n{Colors.BOLD}Verificando que todo funcione...{Colors.END}")
-    if not verificar_importaciones():
-        print(f"\n{Colors.YELLOW}Algunas importaciones fallaron{Colors.END}")
-        print("El programa puede funcionar con funcionalidad limitada")
-    
-    # Verificar si se paso un archivo como argumento
-    archivo_args = []
-    if len(sys.argv) > 1:
-        archivo = sys.argv[1]
-        if os.path.exists(archivo):
-            print(f"\n{Colors.BOLD}Archivo a analizar:{Colors.END} {archivo}")
-            archivo_args = sys.argv[1:]
-        else:
-            print(f"\n{Colors.YELLOW}Advertencia: El archivo '{archivo}' no existe{Colors.END}")
-            print("Se iniciara el modo interactivo")
-    
-    print(f"\n{Colors.BOLD}Iniciando XONIMET...{Colors.END}")
-    print(f"{Colors.BOLD}Para salir:{Colors.END} Ctrl+C")
+    print(f"\n{Colors.BOLD}Iniciando XONIMET (programa principal)...{Colors.END}")
+    print(f"{Colors.BOLD}Para analizar un archivo, escribe su ruta en el menu interactivo{Colors.END}")
+    print(f"{Colors.BOLD}Para salir del programa:{Colors.END} Ctrl+C")
     print("-" * 60)
     
-    # EJECUTAR XONIMET.PY - ESTA ES LA PARTE IMPORTANTE
+    # Ejecutar xonimet.py
     try:
         python_cmd = get_python_command()
-        cmd = python_cmd + ['xonimet.py'] + archivo_args
-        print(f"Ejecutando: {' '.join(cmd)}")
+        print(f"{Colors.BOLD}Ejecutando:{Colors.END} {' '.join(python_cmd + ['xonimet.py'])}")
         print("-" * 60)
         
-        # Ejecutar xonimet.py
-        resultado = subprocess.run(cmd)
+        subprocess.run(python_cmd + ['xonimet.py'])
         
-        if resultado.returncode != 0:
-            print(f"\n{Colors.RED}Error: xonimet.py termino con codigo {resultado.returncode}{Colors.END}")
-            
-    except FileNotFoundError:
-        print(f"\n{Colors.RED}Error: No se encuentra xonimet.py{Colors.END}")
     except KeyboardInterrupt:
         print(f"\n{Colors.YELLOW}Programa detenido por el usuario{Colors.END}")
+    except FileNotFoundError as e:
+        print(f"\n{Colors.RED}Error: No se encuentra Python o xonimet.py{Colors.END}")
+        print(f"   {e}")
     except Exception as e:
         print(f"\n{Colors.RED}Error ejecutando xonimet.py: {e}{Colors.END}")
     
     print(f"\n{Colors.BLUE}Gracias por usar XONIMET 2026{Colors.END}")
-    print(f"{Colors.BLUE}Desarrollado por Darian Alberto Camacho Salas{Colors.END}")
+    print(f"{Colors.CYAN}Desarrollado por Darian Alberto Camacho Salas{Colors.END}")
     
-    if get_system() != 'windows':
+    if sistema != 'windows':
         input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
-
-def crear_accesos_directos():
-    """Crea accesos directos para cada sistema"""
-    sistema = get_system()
-    
-    if sistema == 'windows':
-        # Crear .bat para Windows
-        with open('INICIAR_XONIMET.bat', 'w') as f:
-            f.write("""@echo off
-title XONIMET 2026 - Extractor de Metadatos
-color 1F
-echo ========================================
-echo      XONIMET 2026 - Extractor Universal
-echo      Desarrollado por Darian Alberto
-echo ========================================
-echo.
-echo Arrastra un archivo a esta ventana para analizarlo
-echo O escribe la ruta del archivo:
-echo.
-set /p "archivo=Archivo: "
-python start.py %archivo%
-pause
-""")
-        print(f"{Colors.GREEN}Creado INICIAR_XONIMET.bat - Haz doble clic para ejecutar{Colors.END}")
-    
-    elif sistema == 'linux':
-        # Crear .sh para Linux
-        with open('INICIAR_XONIMET.sh', 'w') as f:
-            f.write("""#!/bin/bash
-echo "========================================"
-echo "      XONIMET 2026 - Extractor Universal"
-echo "      Desarrollado por Darian Alberto"
-echo "========================================"
-echo ""
-echo "Arrastra un archivo a la terminal o escribe su ruta:"
-read -p "Archivo: " archivo
-python3 start.py $archivo
-read -p "Presiona Enter para salir"
-""")
-        os.chmod('INICIAR_XONIMET.sh', 0o755)
-        print(f"{Colors.GREEN}Creado INICIAR_XONIMET.sh - Ejecuta con: ./INICIAR_XONIMET.sh{Colors.END}")
-    
-    elif sistema == 'darwin':
-        # Crear .command para Mac
-        with open('INICIAR_XONIMET.command', 'w') as f:
-            f.write("""#!/bin/bash
-cd "$(dirname "$0")"
-echo "========================================"
-echo "      XONIMET 2026 - Extractor Universal"
-echo "      Desarrollado por Darian Alberto"
-echo "========================================"
-echo ""
-python3 start.py
-""")
-        os.chmod('INICIAR_XONIMET.command', 0o755)
-        print(f"{Colors.GREEN}Creado INICIAR_XONIMET.command - Haz doble clic para ejecutar{Colors.END}")
 
 if __name__ == '__main__':
     try:
-        # Crear accesos directos
-        crear_accesos_directos()
-        
-        # Ejecutar programa principal
         main()
     except KeyboardInterrupt:
         print(f"\n{Colors.YELLOW}Saliendo...{Colors.END}")
