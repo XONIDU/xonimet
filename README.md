@@ -2,6 +2,7 @@
 
 **Desarrollado por: Darian Alberto Camacho Salas**
 
+XONIDU
 ---
 
 ## ⚠️ ADVERTENCIA
