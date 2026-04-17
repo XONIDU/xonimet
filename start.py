@@ -4,7 +4,7 @@
 """
 XONIMET 2026 - Lanzador Universal
 Este script detecta el sistema, instala dependencias y ejecuta xonimet.py
-Genera un archivo .bat en Windows para ejecutar con permisos de administrador
+Incluye instalación automática de pip en Linux si es necesario.
 Desarrollado por: Darian Alberto Camacho Salas
 """
 
@@ -96,6 +96,8 @@ def get_linux_distro():
                     return 'mint'
                 elif 'opensuse' in content:
                     return 'opensuse'
+                elif 'antix' in content:
+                    return 'antix'
         
         try:
             result = subprocess.run(['lsb_release', '-i'], capture_output=True, text=True)
@@ -139,7 +141,7 @@ def get_install_flags():
     distro = get_linux_distro()
     
     if sistema == 'linux':
-        if distro in ['ubuntu', 'debian', 'mint', 'arch', 'manjaro', 'fedora']:
+        if distro in ['ubuntu', 'debian', 'mint', 'arch', 'manjaro', 'fedora', 'antix']:
             flags.append('--break-system-packages')
         else:
             flags.append('--user')
@@ -161,7 +163,7 @@ def print_banner():
     
     banner = f"""
 {Colors.BLUE}{Colors.BOLD}╔══════════════════════════════════════════════════════════╗
-║                     XONIMET 2026 v2.0                     ║
+║                     XONIMET 2026 v2.1                     ║
 ║              Extractor Universal de Metadatos              ║
 ║                                                            ║
 ║               Sistema detectado: {sistema_texto}            ║
@@ -188,6 +190,49 @@ def check_pip():
         subprocess.run(cmd, capture_output=True, check=True)
         return True
     except:
+        return False
+
+def install_pip_linux():
+    """Instala pip en Linux según la distribución detectada"""
+    distro = get_linux_distro()
+    print(f"\n{Colors.BOLD}Instalando pip en Linux ({distro})...{Colors.END}")
+    
+    # Comandos de instalación según distribución
+    if distro in ['ubuntu', 'debian', 'mint', 'antix']:
+        cmd_update = ['sudo', 'apt', 'update']
+        cmd_install = ['sudo', 'apt', 'install', '-y', 'python3-pip']
+    elif distro in ['arch', 'manjaro']:
+        cmd_update = ['sudo', 'pacman', '-Sy']
+        cmd_install = ['sudo', 'pacman', '-S', '--noconfirm', 'python-pip']
+    elif distro in ['fedora']:
+        cmd_update = ['sudo', 'dnf', 'check-update']
+        cmd_install = ['sudo', 'dnf', 'install', '-y', 'python3-pip']
+    elif distro in ['centos']:
+        cmd_update = ['sudo', 'yum', 'check-update']
+        cmd_install = ['sudo', 'yum', 'install', '-y', 'python3-pip']
+    elif distro in ['opensuse']:
+        cmd_update = ['sudo', 'zypper', 'refresh']
+        cmd_install = ['sudo', 'zypper', 'install', '-y', 'python3-pip']
+    else:
+        print(f"{Colors.RED}Distribución no reconocida. Instala pip manualmente:{Colors.END}")
+        print("  Para Debian/Ubuntu: sudo apt install python3-pip")
+        print("  Para Arch: sudo pacman -S python-pip")
+        print("  Para Fedora: sudo dnf install python3-pip")
+        print("  Para CentOS: sudo yum install python3-pip")
+        print("  Para openSUSE: sudo zypper install python3-pip")
+        return False
+    
+    try:
+        print(f"Ejecutando actualización: {' '.join(cmd_update)}")
+        subprocess.run(cmd_update, check=False)
+        
+        print(f"Ejecutando instalación: {' '.join(cmd_install)}")
+        subprocess.run(cmd_install, check=True)
+        
+        print(f"{Colors.GREEN}Pip instalado correctamente{Colors.END}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"{Colors.RED}Error instalando pip: {e}{Colors.END}")
         return False
 
 def install_pip_windows():
@@ -222,7 +267,10 @@ def check_ffmpeg():
 
 def check_command(comando):
     """Verifica si un comando existe en el sistema"""
-    return subprocess.run(['which', comando], capture_output=True).returncode == 0 if get_system() != 'windows' else subprocess.run(['where', comando], capture_output=True).returncode == 0
+    if get_system() == 'windows':
+        return subprocess.run(['where', comando], capture_output=True).returncode == 0
+    else:
+        return subprocess.run(['which', comando], capture_output=True).returncode == 0
 
 def check_dependencies():
     """Verifica qué dependencias necesita xonimet.py"""
@@ -302,7 +350,7 @@ def install_ffmpeg():
         return False
     
     elif sistema == 'linux':
-        if distro in ['ubuntu', 'debian', 'mint']:
+        if distro in ['ubuntu', 'debian', 'mint', 'antix']:
             try:
                 subprocess.run(['sudo', 'apt', 'update'], check=False)
                 subprocess.run(['sudo', 'apt', 'install', '-y', 'ffmpeg'], check=True)
@@ -353,7 +401,7 @@ def get_install_command():
     if sistema == 'windows':
         return "pip install -r requirements.txt"
     elif sistema == 'linux':
-        if distro in ['ubuntu', 'debian', 'mint', 'arch', 'manjaro', 'fedora']:
+        if distro in ['ubuntu', 'debian', 'mint', 'arch', 'manjaro', 'fedora', 'antix']:
             return "pip install -r requirements.txt --break-system-packages"
         else:
             return "pip install --user -r requirements.txt"
@@ -454,7 +502,7 @@ pause
         f.write(bat_content)
     print(f"{Colors.GREEN}Archivo XONIMET_ADMIN.bat creado - Ejecuta como administrador si hay problemas{Colors.END}")
     
-    # Tambien crear un .bat simple sin admin
+    # También crear un .bat simple sin admin
     simple_bat = '''@echo off
 title XONIMET 2026
 color 1F
@@ -476,12 +524,14 @@ def mostrar_instrucciones_python():
         print(f"   IMPORTANTE: Al instalar, marca 'Add Python to PATH'")
         print(f"   Luego cierra y vuelve a abrir la terminal")
     elif sistema == 'linux':
-        if distro in ['ubuntu', 'debian', 'mint']:
+        if distro in ['ubuntu', 'debian', 'mint', 'antix']:
             print(f"   Instala con: sudo apt update && sudo apt install python3 python3-pip")
         elif distro in ['fedora', 'centos']:
             print(f"   Instala con: sudo dnf install python3 python3-pip")
         elif distro in ['arch', 'manjaro']:
             print(f"   Instala con: sudo pacman -S python python-pip")
+        elif distro in ['opensuse']:
+            print(f"   Instala con: sudo zypper install python3 python3-pip")
         else:
             print(f"   Instala Python 3 desde: https://www.python.org/downloads/")
     elif sistema == 'darwin':
@@ -489,7 +539,7 @@ def mostrar_instrucciones_python():
         print(f"   O descarga desde: https://www.python.org/downloads/")
 
 def main():
-    """Funcion principal - Ejecuta xonimet.py"""
+    """Función principal - Ejecuta xonimet.py"""
     # Limpiar pantalla según sistema
     if get_system() == 'windows':
         os.system('cls')
@@ -520,14 +570,59 @@ def main():
         input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
         return
     
-    # Verificar pip en Windows e instalarlo si es necesario
-    if sistema == 'windows' and not check_pip():
-        print(f"\n{Colors.YELLOW}Pip no encontrado. Intentando instalar...{Colors.END}")
-        if not install_pip_windows():
-            print(f"\n{Colors.RED}No se pudo instalar pip automaticamente{Colors.END}")
-            print(f"   Ejecuta XONIMET_ADMIN.bat como administrador")
-            input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
-            return
+    # Verificar pip en Linux y Windows
+    if not check_pip():
+        print(f"\n{Colors.YELLOW}Pip no encontrado.{Colors.END}")
+        
+        if sistema == 'linux':
+            respuesta = input(f"¿Deseas instalar pip automaticamente usando el gestor de paquetes? (s/n): ")
+            if respuesta.lower() == 's':
+                if install_pip_linux():
+                    print(f"{Colors.GREEN}Pip instalado correctamente. Continuando...{Colors.END}")
+                else:
+                    print(f"{Colors.RED}No se pudo instalar pip. Instala manualmente y vuelve a ejecutar.{Colors.END}")
+                    input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
+                    return
+            else:
+                print(f"{Colors.YELLOW}Pip es necesario para instalar dependencias. Instala pip manualmente según tu distribución:{Colors.END}")
+                if distro in ['ubuntu', 'debian', 'mint', 'antix']:
+                    print("  sudo apt install python3-pip")
+                elif distro in ['arch', 'manjaro']:
+                    print("  sudo pacman -S python-pip")
+                elif distro in ['fedora']:
+                    print("  sudo dnf install python3-pip")
+                elif distro in ['centos']:
+                    print("  sudo yum install python3-pip")
+                elif distro in ['opensuse']:
+                    print("  sudo zypper install python3-pip")
+                else:
+                    print("  Consulta la documentación de tu distribución")
+                input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
+                return
+        
+        elif sistema == 'windows':
+            print(f"{Colors.YELLOW}Intentando instalar pip automaticamente en Windows...{Colors.END}")
+            if not install_pip_windows():
+                print(f"\n{Colors.RED}No se pudo instalar pip automaticamente{Colors.END}")
+                print(f"   Ejecuta XONIMET_ADMIN.bat como administrador")
+                input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
+                return
+        
+        elif sistema == 'darwin':
+            print(f"{Colors.YELLOW}En macOS, instala pip con: python3 -m ensurepip --upgrade{Colors.END}")
+            respuesta = input(f"¿Intentar instalarlo ahora? (s/n): ")
+            if respuesta.lower() == 's':
+                try:
+                    subprocess.run([sys.executable, '-m', 'ensurepip', '--upgrade'], check=True)
+                    print(f"{Colors.GREEN}Pip instalado correctamente{Colors.END}")
+                except:
+                    print(f"{Colors.RED}Error instalando pip. Instala manualmente con: brew install python3{Colors.END}")
+                    input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
+                    return
+            else:
+                print(f"{Colors.YELLOW}Pip es necesario. Instálalo manualmente y vuelve a ejecutar.{Colors.END}")
+                input(f"\n{Colors.YELLOW}Presiona Enter para salir...{Colors.END}")
+                return
     
     # Verificar dependencias de Python
     missing = check_dependencies()
