@@ -1,13 +1,29 @@
 # 🔍 XONIMET 2026 - Extractor Universal de Metadatos
 
-**Desarrollado por: Darian Alberto Camacho Salas**
+**Desarrollado por: Darian Alberto Camacho Salas**  
+**SOMOS XONIDU**
 
-SOMOS XONIDU
 ---
 
 ## ⚠️ ADVERTENCIA
 
-> **Solo para fines educativos. Úsalo en archivos propios o con autorización explícita.**
+> Solo para fines educativos. Úsalo en archivos propios o con autorización explícita.
+
+---
+
+## 📦 INSTALACIÓN
+
+### Arch Linux (AUR)
+```bash
+yay -S xonimet
+```
+
+### Otros sistemas (Windows, macOS, Linux)
+```bash
+git clone https://github.com/XONIDU/xonimet.git
+cd xonimet
+python start.py
+```
 
 ---
 
@@ -24,7 +40,7 @@ xonimet/
 
 ## 🚀 ASÍ DE FÁCIL: SOLO EJECUTA start.py
 
-**El archivo start.py hace TODO automáticamente:**
+El archivo start.py hace TODO automáticamente:
 
 | # | Acción |
 |:-:|--------|
@@ -87,20 +103,19 @@ python start.py foto.jpg --pdf
 - ✅ **Exportación JSON**: Para integración con otras herramientas
 - ✅ **Cálculo de hashes**: MD5, SHA1, SHA256
 - ✅ **Soporte Unicode**: Tildes y caracteres especiales
+- ✅ **Disponible en AUR**: `yay -S xonimet`
 
 ---
 
 ## 🔧 PROBLEMAS COMUNES
 
 ### ❌ "Python no está instalado"
-
 ```bash
 # Descarga desde:
 https://www.python.org/downloads/
 ```
 
 ### ❌ "externally-managed-environment" en Linux
-
 ```bash
 # start.py ya lo soluciona automáticamente
 # Si quieres manual:
@@ -108,7 +123,6 @@ pip install --break-system-packages -r requirements.txt
 ```
 
 ### ❌ "ffmpeg not found" (necesario para videos)
-
 ```bash
 # Ubuntu/Debian
 sudo apt install ffmpeg
@@ -127,7 +141,6 @@ Descarga desde: https://ffmpeg.org/download.html
 ```
 
 ### ❌ "No module named 'reportlab'"
-
 ```bash
 pip install reportlab
 # En Linux con external management:
@@ -262,6 +275,3 @@ Ver archivo `Legal` para más detalles.
 ---
 
 **XONIDU - Enseñando automatización, construyendo conocimiento**
-
----
-
