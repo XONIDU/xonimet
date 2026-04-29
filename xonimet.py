@@ -4,6 +4,9 @@
 """
 XONIMET 2026 - Extractor Universal de Metadatos (Con Reporte PDF)
 Extrae metadatos de archivos y genera reportes en PDF con formato profesional.
+Optimizado para AUR - Configuracion en ~/.xonimet/
+Desarrollador: Darian Alberto Camacho Salas
+Organizacion: XONIDU
 """
 
 import os
@@ -12,30 +15,80 @@ import json
 import datetime
 import hashlib
 from pathlib import Path
-from PIL import Image
-from PIL.ExifTags import TAGS
-import mutagen
-from mutagen.mp3 import MP3
-from mutagen.flac import FLAC
-from mutagen.mp4 import MP4
-from mutagen.oggvorbis import OggVorbis
-import ffmpeg
-from PyPDF2 import PdfReader
-import docx
-from openpyxl import load_workbook
-from pptx import Presentation
-import exifread
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image as RLImage
-from reportlab.pdfgen import canvas
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+# ============================================================================
+# Verificacion de dependencias con mensajes claros
+# ============================================================================
+try:
+    from PIL import Image
+    from PIL.ExifTags import TAGS
+except ImportError:
+    print("[ERROR] Pillow no instalado. Ejecuta: pip install pillow")
+    sys.exit(1)
+
+try:
+    import mutagen
+    from mutagen.mp3 import MP3
+    from mutagen.flac import FLAC
+    from mutagen.mp4 import MP4
+    from mutagen.oggvorbis import OggVorbis
+except ImportError:
+    print("[ERROR] Mutagen no instalado. Ejecuta: pip install mutagen")
+    sys.exit(1)
+
+try:
+    import ffmpeg
+except ImportError:
+    print("[ERROR] ffmpeg-python no instalado. Ejecuta: pip install ffmpeg-python")
+    sys.exit(1)
+
+try:
+    from PyPDF2 import PdfReader
+except ImportError:
+    print("[ERROR] PyPDF2 no instalado. Ejecuta: pip install PyPDF2")
+    sys.exit(1)
+
+try:
+    import docx
+except ImportError:
+    print("[ERROR] python-docx no instalado. Ejecuta: pip install python-docx")
+    sys.exit(1)
+
+try:
+    from openpyxl import load_workbook
+except ImportError:
+    print("[ERROR] openpyxl no instalado. Ejecuta: pip install openpyxl")
+    sys.exit(1)
+
+try:
+    from pptx import Presentation
+except ImportError:
+    print("[ERROR] python-pptx no instalado. Ejecuta: pip install python-pptx")
+    sys.exit(1)
+
+try:
+    import exifread
+except ImportError:
+    print("[ERROR] exifread no instalado. Ejecuta: pip install exifread")
+    sys.exit(1)
+
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.enums import TA_CENTER
+except ImportError:
+    print("[ERROR] reportlab no instalado. Ejecuta: pip install reportlab")
+    sys.exit(1)
+
 import warnings
 warnings.filterwarnings('ignore')
 
+# ============================================================================
 # Colores para terminal
+# ============================================================================
 class Colors:
     HEADER = '\033[95m'
     BLUE = '\033[94m'
@@ -45,11 +98,38 @@ class Colors:
     END = '\033[0m'
     BOLD = '\033[1m'
     CYAN = '\033[96m'
+    PURPLE = '\033[95m'
 
+# ============================================================================
+# Clase principal Xonimet
+# ============================================================================
 class Xonimet:
     def __init__(self, file_path=None):
         self.file_path = Path(file_path) if file_path else None
         self.metadata = {}
+    
+    def get_config_dir(self):
+        """Retorna el directorio de configuracion en ~/.xonimet/"""
+        return os.path.join(os.path.expanduser("~"), '.xonimet')
+    
+    def ensure_config_dir(self):
+        """Asegura que el directorio de configuracion existe"""
+        config_dir = self.get_config_dir()
+        os.makedirs(config_dir, exist_ok=True)
+        return config_dir
+    
+    def get_pdf_output_path(self, base_name=None):
+        """Genera ruta de salida para PDF en ~/.xonimet/ o directorio actual"""
+        if base_name is None:
+            base_name = Path(self.file_path).stem if self.file_path else "reporte"
+        
+        config_dir = self.get_config_dir()
+        # Intentar guardar en config dir primero
+        if os.access(config_dir, os.W_OK):
+            return os.path.join(config_dir, f"{base_name}_reporte.pdf")
+        else:
+            # Fallback al directorio actual
+            return f"{base_name}_reporte.pdf"
     
     def set_file(self, file_path):
         """Establece el archivo a analizar"""
@@ -364,9 +444,12 @@ class Xonimet:
         if not self.metadata:
             return None
         
+        # Crear directorio de configuracion si no existe
+        self.ensure_config_dir()
+        
         if output_path is None:
             base_name = Path(self.metadata['archivo']['nombre']).stem
-            output_path = f"{base_name}_reporte.pdf"
+            output_path = self.get_pdf_output_path(base_name)
         
         doc = SimpleDocTemplate(output_path, pagesize=A4,
                                rightMargin=72, leftMargin=72,
@@ -408,7 +491,7 @@ class Xonimet:
         )
         
         # Titulo principal
-        title_text = f"Reporte de Metadatos"
+        title_text = "Reporte de Metadatos"
         story.append(Paragraph(title_text, title_style))
         story.append(Spacer(1, 0.2*inch))
         
@@ -504,7 +587,7 @@ class Xonimet:
         
         # Pie de pagina
         story.append(Spacer(1, 0.5*inch))
-        footer_text = f"Reporte generado por XONIMET 2026 - Extractor Universal de Metadatos"
+        footer_text = "Reporte generado por XONIMET 2026 - Extractor Universal de Metadatos"
         story.append(Paragraph(footer_text, ParagraphStyle(
             'Footer',
             parent=styles['Normal'],
@@ -546,7 +629,7 @@ class Xonimet:
             spec = metadata['metadatos_especificos']
             
             if 'error' in spec:
-                print(f"  {Colors.RED}⚠  {spec['error']}{Colors.END}")
+                print(f"  {Colors.RED}⚠ {spec['error']}{Colors.END}")
             else:
                 for key, value in spec.items():
                     if isinstance(value, dict):
@@ -559,6 +642,9 @@ class Xonimet:
         
         print(f"\n{Colors.CYAN}{Colors.BOLD}═══════════════════════════════════════════════════════════{Colors.END}")
 
+# ============================================================================
+# Funciones del modo interactivo
+# ============================================================================
 def clear_screen():
     """Limpia la pantalla segun el sistema"""
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -625,7 +711,7 @@ AYUDA - FORMATOS SOPORTADOS
 {Colors.GREEN}REPORTE PDF:{Colors.END}
   • Genera un PDF con formato profesional
   • Incluye tablas, colores y estructura clara
-  • Se guarda en la misma carpeta del archivo
+  • Se guarda en: ~/.xonimet/ o en el directorio actual
 
 {Colors.CYAN}{Colors.BOLD}═══════════════════════════════════════════════════════════{Colors.END}
 """
@@ -669,7 +755,7 @@ def save_to_json(metadata):
         print(f"{Colors.RED}Error guardando: {e}{Colors.END}")
 
 def generate_pdf(xonimet):
-    """Genera reporte PDF"""
+    """Genera reporte PDF y muestra la ruta"""
     if not xonimet.metadata:
         print(f"{Colors.RED}Primero analiza un archivo (opcion 2){Colors.END}")
         return
@@ -677,13 +763,44 @@ def generate_pdf(xonimet):
     print(f"\n{Colors.CYAN}Generando reporte PDF...{Colors.END}")
     try:
         pdf_path = xonimet.generate_pdf_report()
-        print(f"{Colors.GREEN}PDF generado exitosamente: {pdf_path}{Colors.END}")
+        # Mostrar la ruta completa del PDF generado
+        print(f"{Colors.GREEN}✓ PDF generado exitosamente{Colors.END}")
+        print(f"{Colors.CYAN}📄 Ruta del reporte: {os.path.abspath(pdf_path)}{Colors.END}")
+        
+        # Mostrar info adicional
+        if os.path.exists(pdf_path):
+            size = os.path.getsize(pdf_path)
+            if size < 1024:
+                size_str = f"{size} B"
+            elif size < 1024*1024:
+                size_str = f"{size/1024:.2f} KB"
+            else:
+                size_str = f"{size/(1024*1024):.2f} MB"
+            print(f"{Colors.YELLOW}📊 Tamaño del archivo: {size_str}{Colors.END}")
     except Exception as e:
         print(f"{Colors.RED}Error generando PDF: {e}{Colors.END}")
         print(f"{Colors.YELLOW}Asegurate de tener instalado reportlab: pip install reportlab{Colors.END}")
 
+def get_xonimet_path():
+    """Detecta la ruta de xonimet.py en multiples ubicaciones (para AUR)"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    rutas = [
+        os.path.join(script_dir, 'xonimet.py'),
+        '/usr/share/xonimet/xonimet.py',
+        os.path.join(os.path.expanduser("~"), '.xonimet', 'xonimet.py'),
+        os.path.join(os.getcwd(), 'xonimet.py')
+    ]
+    for r in rutas:
+        if os.path.exists(r):
+            return r
+    return None
+
 def main():
     """Funcion principal del modo interactivo"""
+    # Asegurar directorio de configuracion
+    config_dir = os.path.join(os.path.expanduser("~"), '.xonimet')
+    os.makedirs(config_dir, exist_ok=True)
+    
     xonimet = Xonimet()
     current_file = None
     
@@ -692,9 +809,11 @@ def main():
         print_menu()
         
         if current_file:
-            print(f"{Colors.GREEN}Archivo actual: {current_file}{Colors.END}")
+            print(f"{Colors.GREEN}📁 Archivo actual: {current_file}{Colors.END}")
+            print(f"{Colors.CYAN}📂 Configuracion: {config_dir}{Colors.END}")
         else:
-            print(f"{Colors.YELLOW}Ningun archivo seleccionado{Colors.END}")
+            print(f"{Colors.YELLOW}📁 Ningun archivo seleccionado{Colors.END}")
+            print(f"{Colors.CYAN}📂 Configuracion: {config_dir}{Colors.END}")
         
         opcion = input(f"\n{Colors.BOLD}Selecciona una opcion [0-8]:{Colors.END} ").strip()
         
@@ -703,7 +822,7 @@ def main():
             if new_file:
                 current_file = new_file
                 xonimet.set_file(current_file)
-                print(f"{Colors.GREEN}Archivo seleccionado: {current_file}{Colors.END}")
+                print(f"{Colors.GREEN}✓ Archivo seleccionado: {current_file}{Colors.END}")
                 input(f"\n{Colors.YELLOW}Presiona Enter para continuar...{Colors.END}")
         
         elif opcion == '2':  # Analizar archivo actual
@@ -744,6 +863,8 @@ def main():
                 print(f"  {Colors.YELLOW}•{Colors.END} Ruta: {current_file}")
                 print(f"  {Colors.YELLOW}•{Colors.END} Tamaño: {xonimet._format_bytes(os.path.getsize(current_file))}")
                 print(f"  {Colors.YELLOW}•{Colors.END} Extension: {Path(current_file).suffix}")
+                print(f"\n{Colors.CYAN}Directorio de configuracion:{Colors.END}")
+                print(f"  {Colors.YELLOW}•{Colors.END} {config_dir}")
             input(f"\n{Colors.YELLOW}Presiona Enter para continuar...{Colors.END}")
         
         elif opcion == '7':  # Ayuda
@@ -756,15 +877,20 @@ def main():
         
         elif opcion == '0':  # Salir
             print(f"\n{Colors.GREEN}Gracias por usar XONIMET 2026!{Colors.END}")
-            print(f"{Colors.CYAN}Desarrollado por Darian Alberto Camacho Salas{Colors.END}")
+            print(f"{Colors.CYAN}Desarrollado por Darian Alberto Camacho Salas (XONIDU){Colors.END}")
+            print(f"{Colors.YELLOW}Reportes guardados en: {config_dir}{Colors.END}")
             break
         
         else:
             print(f"{Colors.RED}Opcion no valida. Intenta de nuevo.{Colors.END}")
             input(f"\n{Colors.YELLOW}Presiona Enter para continuar...{Colors.END}")
 
+# ============================================================================
+# Punto de entrada
+# ============================================================================
 if __name__ == "__main__":
     try:
+        # Modo linea de comandos
         if len(sys.argv) > 1 and sys.argv[1] not in ['-h', '--help']:
             file_path = sys.argv[1]
             if os.path.exists(file_path):
@@ -775,12 +901,13 @@ if __name__ == "__main__":
                     print(json.dumps(metadata, indent=2, ensure_ascii=False, default=str))
                 elif '--pdf' in sys.argv:
                     pdf_path = xonimet.generate_pdf_report()
-                    print(f"PDF generado: {pdf_path}")
+                    print(f"PDF generado: {os.path.abspath(pdf_path)}")
                 else:
                     xonimet.print_metadata(metadata)
             else:
                 print(f"{Colors.RED}El archivo '{file_path}' no existe{Colors.END}")
         else:
+            # Modo interactivo
             main()
     except KeyboardInterrupt:
         print(f"\n\n{Colors.YELLOW}Hasta pronto!{Colors.END}")
