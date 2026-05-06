@@ -23,7 +23,16 @@ yay -S xonimet
 git clone https://github.com/XONIDU/xonimet.git
 cd xonimet
 python start.py
+
 ```
+o
+
+```bash
+git clone https://github.com/XONIDU/xonimet.git
+cd xonimet
+python3 start.py
+```
+
 
 ---
 
