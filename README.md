@@ -48,7 +48,7 @@ Luego simplemente escribe:
 ```bash
 xoninstall xonimet
 cd xonimet
-pip install -r requisitos.txt
+pip install -r requirements.txt
 python start.py
 ```
 
@@ -79,6 +79,26 @@ El archivo start.py hace TODO automáticamente:
 | 4 | Las instala automáticamente |
 | 5 | Ejecuta el programa |
 | 6 | Muestra todos los metadatos |
+
+---
+
+## 🎮 MODOS DE EJECUCIÓN
+
+### Modo Terminal (CLI) - Bajo consumo de recursos
+```bash
+python xonimet.py 1
+```
+O simplemente:
+```bash
+python xonimet.py
+```
+Y selecciona `[1]` en el menú.
+
+### Modo Gráfico (Web) - Interfaz amigable
+```bash
+python xonimet.py 2
+```
+Luego abre tu navegador en: `http://localhost:5000`
 
 ---
 
@@ -192,8 +212,9 @@ pause
 ## 🎯 CARACTERÍSTICAS PRINCIPALES
 
 - ✅ **Multiplataforma**: Windows, Linux y macOS
-- ✅ **Modo interactivo**: Menú fácil de usar
-- ✅ **Línea de comandos**: Para automatización
+- ✅ **Dos modos de ejecución**: Terminal (CLI) y Gráfico (Web)
+- ✅ **Modo terminal**: Bajo consumo de recursos (ideal para equipos antiguos, Raspberry Pi, SSH)
+- ✅ **Modo gráfico**: Interfaz web amigable con subida de archivos
 - ✅ **Reportes PDF**: Genera informes profesionales
 - ✅ **Exportación JSON**: Para integración con otras herramientas
 - ✅ **Cálculo de hashes**: MD5, SHA1, SHA256
@@ -248,33 +269,38 @@ pip install --break-system-packages reportlab
 # O haz clic derecho > "Ejecutar como administrador"
 ```
 
+### ❌ "'bool' object is not callable" (modo gráfico)
+```bash
+# Asegúrate de tener la última versión de xonimet.py
+# El error ya fue corregido en v3.0
+git pull
+```
+
 ---
 
 ## 💡 EJEMPLOS RÁPIDOS
 
-### 1. Ver metadatos de una foto
+### 1. Ver metadatos de una foto (CLI)
 ```bash
-python start.py vacaciones.jpg
+python xonimet.py 1
+# Luego selecciona opción 1 y escribe la ruta
 ```
-*Muestra: modelo de cámara, fecha, GPS, configuración*
 
-### 2. Extraer info de una canción
+### 2. Extraer info de una canción (Web)
 ```bash
-python start.py cancion.mp3
+python xonimet.py 2
+# Abre http://localhost:5000 y sube tu archivo
 ```
-*Muestra: artista, álbum, duración, bitrate, género*
 
-### 3. Analizar un PDF
+### 3. Analizar un PDF desde CLI
 ```bash
 python start.py documento.pdf
 ```
-*Muestra: autor, páginas, fecha creación, metadatos*
 
 ### 4. Generar reporte PDF de un video
 ```bash
 python start.py video.mp4 --pdf
 ```
-*Genera un PDF con todos los metadatos del video*
 
 ---
 
@@ -348,6 +374,7 @@ METADATOS ESPECIFICOS:
 - openpyxl (Excel)
 - python-pptx (PowerPoint)
 - reportlab (Reportes PDF)
+- Flask (Interfaz gráfica)
 
 ---
 
