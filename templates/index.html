@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XONIMET · Extractor de Metadatos · XONIDU</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #000000;
+            color: #00ff00;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        nav {
+            background-color: #000000;
+            border-bottom: 1px solid #00ff00;
+            padding: 12px 0;
+            position: sticky;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            text-align: center;
+        }
+
+        nav a {
+            color: #00ff00;
+            text-decoration: none;
+            padding: 10px 20px;
+            margin: 0 10px;
+            font-size: 18px;
+            font-weight: 500;
+            transition: 0.3s;
+            display: inline-block;
+        }
+
+        nav a:hover {
+            background-color: #00ff00;
+            color: #000000;
+            border-radius: 8px;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.8rem;
+            margin: 20px 0 10px;
+            color: #ffffff;
+            letter-spacing: 2px;
+        }
+
+        .subtitulo {
+            text-align: center;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            color: #bbffbb;
+            border-bottom: 1px solid #2a6b2a;
+            display: inline-block;
+            padding-bottom: 5px;
+        }
+
+        .card {
+            background: #0a0a0a;
+            border: 1px solid #00ff00;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 30px;
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0 15px rgba(0,255,0,0.15);
+        }
+
+        h2, h3 {
+            color: #ffffff;
+            margin: 15px 0 12px 0;
+            border-left: 4px solid #00ff00;
+            padding-left: 15px;
+        }
+
+        .form-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .form-row input[type="file"] {
+            flex: 2;
+            min-width: 200px;
+            padding: 10px 16px;
+            background: #111;
+            border: 1px solid #2a6b2a;
+            color: #0f0;
+            border-radius: 30px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .form-row input[type="file"]:hover {
+            border-color: #00ff00;
+        }
+
+        button {
+            background: #1a3a1a;
+            border: 1px solid #0f0;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #0f0;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: #00ff00;
+            color: #000;
+            border-color: #fff;
+        }
+
+        .btn-primary {
+            background: #0f3f0f;
+            padding: 12px 28px;
+            font-size: 1rem;
+            border-width: 2px;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #0f0;
+            color: #0f0;
+        }
+
+        .btn-outline:hover {
+            background: #0f0;
+            color: #000;
+        }
+
+        .btn-success {
+            background: #003300;
+            border-color: #00cc00;
+            color: #00cc00;
+        }
+
+        .btn-success:hover {
+            background: #00cc00;
+            color: #000;
+        }
+
+        .flash {
+            background: #0a2a0a;
+            border-left: 5px solid #00ff00;
+            padding: 12px 18px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            color: #bbffbb;
+        }
+
+        .flash-error {
+            border-left-color: #ff5555;
+            color: #ff8888;
+            background: #2a0a0a;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .metadata-card {
+            background: #0a0a0a;
+            border: 1px solid #2a6b2a;
+            border-radius: 12px;
+            padding: 15px;
+            transition: 0.2s;
+        }
+
+        .metadata-card:hover {
+            border-color: #00ff00;
+        }
+
+        .metadata-card .label {
+            color: #00ff00;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metadata-card .value {
+            color: #ffffff;
+            font-size: 0.95rem;
+            word-break: break-all;
+            margin-top: 5px;
+        }
+
+        .metadata-card .category {
+            color: #88ff88;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #1a3a1a;
+            padding-bottom: 5px;
+        }
+
+        .file-info {
+            background: #050505;
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid #1a3a1a;
+            margin-bottom: 20px;
+        }
+
+        .file-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #0a1a0a;
+        }
+
+        .file-info-row:last-child {
+            border-bottom: none;
+        }
+
+        .file-info-label {
+            color: #88ff88;
+        }
+
+        .file-info-value {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .hash-box {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #88ff88;
+            word-break: break-all;
+            background: #0a0a0a;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #1a3a1a;
+        }
+
+        .action-group {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #5a8a5a;
+            padding: 40px 20px;
+            font-size: 1.1rem;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid #2a6b2a;
+            color: #88ff88;
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                width: 98%;
+                padding: 10px;
+            }
+            .form-row {
+                flex-direction: column;
+            }
+            .form-row button {
+                width: 100%;
+                justify-content: center;
+            }
+            nav a {
+                margin: 0 5px;
+                padding: 6px 10px;
+                font-size: 13px;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            .metadata-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="#inicio">XONIMET</a>
+    <a href="#subir">Subir</a>
+    <a href="#resultados">Resultados</a>
+    <a href="#exportar">Exportar</a>
+</nav>
+
+<div class="container" id="inicio">
+    <h1>🔍 XONIMET</h1>
+    <div style="text-align: center;">
+        <div class="subtitulo">⚡ Extractor Universal de Metadatos · Hecho por XONIDU</div>
+    </div>
+
+    <!-- Mensajes flash -->
+    <div class="flash-messages">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- ========= SECCIÓN DE SUBIDA ========= -->
+    <div class="card" id="subir">
+        <h2>📤 SUBIR ARCHIVO</h2>
+        <p style="color: #88ff88; margin-bottom: 15px;">Selecciona cualquier archivo para extraer sus metadatos:</p>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="form-row">
+                <input type="file" name="file" id="fileInput" required>
+                <button type="submit" class="btn-primary">🔍 Analizar</button>
+            </div>
+        </form>
+        <div style="color: #5a8a5a; font-size: 0.85rem; margin-top: 10px;">
+            📸 Imágenes · 🎵 Audio · 🎬 Video · 📄 Documentos · 📝 Texto
+        </div>
+    </div>
+
+    <!-- ========= RESULTADOS ========= -->
+    <div id="resultados">
+        {% if has_metadata %}
+        <div class="card">
+            <h2>📊 METADATOS EXTRAÍDOS</h2>
+            
+            <!-- Información del archivo -->
+            <div class="file-info">
+                <h3 style="border-left-color: #00ff00;">📄 Archivo: {{ filename }}</h3>
+                <div class="file-info-row">
+                    <span class="file-info-label">Tamaño</span>
+                    <span class="file-info-value">{{ file_info.get('tamaño_formateado', 'Desconocido') }}</span>
+                </div>
+                <div class="file-info-row">
+                    <span class="file-info-label">Extensión</span>
+                    <span class="file-info-value">{{ file_info.get('extension', 'Desconocida') }}</span>
+                </div>
+                <div class="file-info-row">
+                    <span class="file-info-label">Tipo MIME</span>
+                    <span class="file-info-value">{{ file_info.get('tipo_mime', 'Desconocido') }}</span>
+                </div>
+            </div>
+
+            <!-- Hashes -->
+            {% if file_info.get('hashes') %}
+            <h3>🔐 Hashes</h3>
+            <div class="hash-box">
+                {% for algo, valor in file_info.get('hashes', {}).items() %}
+                <div><strong>{{ algo.upper() }}:</strong> {{ valor }}</div>
+                {% endfor %}
+            </div>
+            <br>
+            {% endif %}
+
+            <!-- Metadatos específicos -->
+            <h3>📋 Metadatos Específicos</h3>
+            <div class="metadata-grid">
+                {% for item in specific_metadata %}
+                <div class="metadata-card">
+                    <div class="category">{{ item.category }}</div>
+                    <div class="label">{{ item.key }}</div>
+                    <div class="value">{{ item.value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ========= EXPORTAR ========= -->
+        <div id="exportar">
+            <div class="action-group">
+                <form method="POST" action="{{ url_for('export_json') }}">
+                    <input type="hidden" name="metadata" value="{{ metadata|tojson|e }}">
+                    <button type="submit" class="btn-success">📥 Exportar JSON</button>
+                </form>
+                <form method="POST" action="{{ url_for('export_pdf') }}">
+                    <input type="hidden" name="metadata" value="{{ metadata|tojson|e }}">
+                    <button type="submit" class="btn-success">📄 Exportar PDF</button>
+                </form>
+                <button onclick="location.reload()" class="btn-outline">🔄 Nuevo análisis</button>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="card">
+            <div class="empty-state">
+                <div style="font-size: 3rem; margin-bottom: 15px;">📂</div>
+                <p>No hay metadatos para mostrar</p>
+                <p style="font-size: 0.9rem; margin-top: 10px;">Sube un archivo para analizar sus metadatos</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Nota final -->
+    <div style="margin-top: 25px; text-align: center; font-size: 0.75rem; color: #3a7a3a;">
+        🔒 Datos procesados en memoria · No se almacena nada en el servidor · XONIDU — Código abierto libre
+    </div>
+</div>
+
+<footer>
+    <p>© 2026 XONIDU · Extractor Universal de Metadatos · Hecho por Darian Alberto Camacho Salas</p>
+    <p style="font-size:0.7rem">#SomosXONIDU · Innovación con conciencia social</p>
+</footer>
+
+</body>
+</html>
