@@ -889,7 +889,7 @@ def modo_grafico():
     except:
         pass
     
-    print(f"\n{Colors.GREEN}{Colors.BOLD}🌐 Servidor web iniciado{Colors.END}")
+    print(f"\n{Colors.GREEN}{Colors.BOLD}Servidor web iniciado{Colors.END}")
     print(f"   {Colors.CYAN}Local:{Colors.END}   http://127.0.0.1:5000/")
     print(f"   {Colors.CYAN}Red:{Colors.END}     http://{server_ip}:5000/")
     print(f"\n{Colors.YELLOW}Presiona Ctrl+C para detener el servidor{Colors.END}")
